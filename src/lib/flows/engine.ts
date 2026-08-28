@@ -332,9 +332,26 @@ async function isDuplicateInbound(
   return (count ?? 0) > 0;
 }
 
+async function loadStartedFlowIds(
+  db: AdminClient,
+  accountId: string,
+  contactId: string,
+): Promise<Set<string>> {
+  const { data, error } = await db
+    .from("flow_runs")
+    .select("flow_id")
+    .eq("account_id", accountId)
+    .eq("contact_id", contactId);
+  if (error || !data) return new Set();
+  return new Set(
+    (data as { flow_id: string }[]).map((row) => row.flow_id),
+  );
+}
+
 async function findEntryFlow(
   db: AdminClient,
   accountId: string,
+  contactId: string,
   message: ParsedInbound,
   isFirstInbound: boolean,
 ): Promise<FlowRow | null> {
@@ -360,20 +377,31 @@ async function findEntryFlow(
   if (error || !flows) return null;
 
   const typed = flows as FlowRow[];
+  // Lazy: only hit flow_runs when a first_inbound flow might start for
+  // a contact who already messaged (welcome activated after they
+  // chatted; without this the AI auto-reply steals every later "Hi").
+  let startedFlowIds: Set<string> | null = null;
   for (const flow of typed) {
     if (flow.trigger_type === "keyword") {
       const cfg = flow.trigger_config as KeywordTriggerConfig;
       if (candidates.some((text) => matchesKeywordTrigger(text, cfg))) {
         return flow;
       }
-    } else if (flow.trigger_type === "first_inbound_message" && isFirstInbound) {
+    } else if (flow.trigger_type === "first_inbound_message") {
       // Also reachable by a tap now: a broadcast template with a
       // quick-reply button can genuinely be what prompts a contact's
       // first-ever inbound. The automations dispatcher has always
       // treated a tap that way (the webhook pushes
       // `first_inbound_message` regardless of envelope) — flows were
       // the inconsistent half.
-      return flow;
+      if (isFirstInbound) return flow;
+      // Once per contact, not once per lifetime first-message: a
+      // newly-activated welcome must still fire for the number you
+      // tested AI with yesterday.
+      if (startedFlowIds === null) {
+        startedFlowIds = await loadStartedFlowIds(db, accountId, contactId);
+      }
+      if (!startedFlowIds.has(flow.id)) return flow;
     }
     // 'manual' triggers do not auto-start from inbound messages.
   }
@@ -902,6 +930,7 @@ export async function dispatchInboundToFlows(
     const flow = await findEntryFlow(
       db,
       input.accountId,
+      input.contactId,
       input.message,
       input.isFirstInboundMessage,
     );

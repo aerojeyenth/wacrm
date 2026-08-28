@@ -66,6 +66,7 @@ export async function POST(request: Request) {
   let effectiveDescription = description
   let effectiveTriggerType = trigger_type
   let effectiveTriggerConfig = trigger_config
+  let effectiveCancelOnReply: boolean | undefined = body.cancel_on_reply
 
   if (template && (!steps || steps.length === 0)) {
     const t = getTemplate(template)
@@ -75,6 +76,9 @@ export async function POST(request: Request) {
       effectiveTriggerType = effectiveTriggerType ?? t.trigger_type
       effectiveTriggerConfig = effectiveTriggerConfig ?? t.trigger_config
       effectiveSteps = t.steps as unknown as BuilderStepInput[]
+      if (effectiveCancelOnReply === undefined && t.cancel_on_reply !== undefined) {
+        effectiveCancelOnReply = t.cancel_on_reply
+      }
     }
   }
 
@@ -115,6 +119,7 @@ export async function POST(request: Request) {
       trigger_type: effectiveTriggerType,
       trigger_config: effectiveTriggerConfig ?? {},
       is_active: !!is_active,
+      cancel_on_reply: effectiveCancelOnReply !== false,
     })
     .select()
     .single()

@@ -18,7 +18,7 @@ const h = vi.hoisted(() => ({
     logInserts: [] as Record<string, unknown>[],
     logUpdates: [] as Record<string, unknown>[],
     cancelPendingResult: {
-      data: [] as { id: string }[],
+      data: [] as { id: string; automations?: { cancel_on_reply: boolean } }[],
       error: null as { message: string } | null,
     },
   },
@@ -68,6 +68,12 @@ vi.mock("./admin-client", () => {
     }
     if (table === "automation_steps") return { data: state.steps, error: null };
     if (table === "automation_pending_executions") {
+      if (type === "select") {
+        return {
+          data: state.cancelPendingResult.data,
+          error: state.cancelPendingResult.error,
+        };
+      }
       if (type === "update") {
         state.updateCalls.push({
           table,
@@ -75,10 +81,11 @@ vi.mock("./admin-client", () => {
           payload: ops.payload,
         });
         if (ops.selectAfterUpdate) {
-          return {
-            data: state.cancelPendingResult.data,
-            error: state.cancelPendingResult.error,
-          };
+          const ids = (ops.filters.find((f) => f[1] === "id")?.[2] as string[]) ?? [];
+          const data = state.cancelPendingResult.data.filter((row: { id: string }) =>
+            ids.includes(row.id),
+          );
+          return { data, error: state.cancelPendingResult.error };
         }
         return { data: null, error: null };
       }
@@ -105,6 +112,7 @@ vi.mock("./admin-client", () => {
       delete: () => ((ops.type = "delete"), b),
       upsert: (p: unknown) => ((ops.type = "upsert"), (ops.payload = p), b),
       eq: (k: string, v: unknown) => (ops.filters.push(["eq", k, v]), b),
+      in: (k: string, v: unknown) => (ops.filters.push(["in", k, v]), b),
       gte: () => b,
       is: () => b,
       order: () => b,
@@ -157,9 +165,12 @@ beforeEach(() => {
 });
 
 describe("cancelPendingExecutionsOnContactReply", () => {
-  it("cancels pending rows for the contact and returns the count", async () => {
+  it("cancels pending rows only when automation cancel_on_reply is true", async () => {
     h.state.cancelPendingResult = {
-      data: [{ id: "p1" }, { id: "p2" }],
+      data: [
+        { id: "p1", automations: { cancel_on_reply: true } },
+        { id: "p2", automations: { cancel_on_reply: false } },
+      ],
       error: null,
     };
 
@@ -168,18 +179,21 @@ describe("cancelPendingExecutionsOnContactReply", () => {
       contactId: "c1",
     });
 
-    expect(cancelled).toBe(2);
-    expect(h.state.updateCalls).toContainEqual(
-      expect.objectContaining({
-        table: "automation_pending_executions",
-        payload: { status: "cancelled" },
-        filters: expect.arrayContaining([
-          ["eq", "account_id", ACCOUNT],
-          ["eq", "contact_id", "c1"],
-          ["eq", "status", "pending"],
-        ]),
-      }),
-    );
+    expect(cancelled).toBe(1);
+  });
+
+  it("cancels pending rows for the contact and returns the count", async () => {
+    h.state.cancelPendingResult = {
+      data: [{ id: "p1", automations: { cancel_on_reply: true } }],
+      error: null,
+    };
+
+    const cancelled = await cancelPendingExecutionsOnContactReply({
+      accountId: ACCOUNT,
+      contactId: "c1",
+    });
+
+    expect(cancelled).toBe(1);
   });
 
   it("returns 0 when the update fails", async () => {

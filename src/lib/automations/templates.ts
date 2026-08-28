@@ -10,6 +10,7 @@ export type TemplateSlug =
   | 'out_of_office'
   | 'lead_qualifier'
   | 'follow_up_reminder'
+  | 'auravantara_20h_closing'
 
 export interface TemplateStepSeed {
   step_type: AutomationStepType
@@ -25,6 +26,8 @@ export interface AutomationTemplateDefinition {
   description: string
   trigger_type: AutomationTriggerType
   trigger_config: AutomationTriggerConfig
+  /** When false, customer replies do not cancel pending waits (20h closing). */
+  cancel_on_reply?: boolean
   steps: TemplateStepSeed[]
 }
 
@@ -122,6 +125,28 @@ export const AUTOMATION_TEMPLATES: Record<TemplateSlug, AutomationTemplateDefini
         step_config: {
           text:
             "Just circling back — did you have any other questions for us? Happy to help!",
+        },
+      },
+    ],
+  },
+  auravantara_20h_closing: {
+    slug: 'auravantara_20h_closing',
+    name: 'Auravantara 20-hour closing',
+    description:
+      'Sales follow-ups at T+2, +6, +12, +18 hours. Skips when booking-confirmed or lost. Does not cancel on reply — use scripts/seed-auravantara-ai.ts to install with your tag IDs.',
+    trigger_type: 'first_inbound_message',
+    trigger_config: {},
+    cancel_on_reply: false,
+    steps: [
+      {
+        step_type: 'wait',
+        step_config: { amount: 2, unit: 'hours' },
+      },
+      {
+        step_type: 'send_message',
+        step_config: {
+          text:
+            '👋 Hi! Just checking in regarding your Auravantara Retreats quotation. 🌿',
         },
       },
     ],

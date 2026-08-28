@@ -286,6 +286,80 @@ const LEAD_CAPTURE: FlowTemplate = {
 };
 
 // ============================================================
+// 4. Auravantara welcome — first inbound media + collect prompt
+// ============================================================
+const AURAVANTARA_WELCOME: FlowTemplate = {
+  slug: "auravantara_welcome",
+  name: "Auravantara welcome",
+  description:
+    "Welcome message + villa photos on first inbound (once per contact). Replace media URLs after cloning, then activate. AI agent handles qualification and quoting after that.",
+  icon: "MessageSquare",
+  trigger_type: "first_inbound_message",
+  trigger_config: {},
+  entry_node_id: "start",
+  nodes: [
+    {
+      node_key: "start",
+      node_type: "start",
+      config: { next_node_key: "welcome" } as StartNodeConfig,
+    },
+    {
+      node_key: "welcome",
+      node_type: "send_message",
+      config: {
+        text:
+          "🌿 Welcome to Auravantara Retreats – Ooty!\n\nEscape to the beautiful Nilgiris and enjoy a peaceful villa stay surrounded by mountain & valley views. 🏡✨\n\nWe have three villa options:\n🏡 Alpine Villa – 1 BHK\n🏡 Signature Villa – 2 BHK Premium Villa\n🏡 Imperial Villa – 3 BHK Villa\n\n📸 Please have a look at our villa options below.",
+        next_node_key: "alpine_media",
+      } as SendMessageNodeConfig,
+    },
+    {
+      node_key: "alpine_media",
+      node_type: "send_media",
+      config: {
+        media_type: "image",
+        media_url: "https://placehold.co/800x600/png?text=Alpine+Villa+1+BHK",
+        caption: "🏡 Alpine Villa – 1 BHK",
+        next_node_key: "signature_media",
+      } as SendMediaNodeConfig,
+    },
+    {
+      node_key: "signature_media",
+      node_type: "send_media",
+      config: {
+        media_type: "image",
+        media_url: "https://placehold.co/800x600/png?text=Signature+Villa+2+BHK",
+        caption: "🏡 Signature Villa – 2 BHK Premium",
+        next_node_key: "imperial_media",
+      } as SendMediaNodeConfig,
+    },
+    {
+      node_key: "imperial_media",
+      node_type: "send_media",
+      config: {
+        media_type: "image",
+        media_url: "https://placehold.co/800x600/png?text=Imperial+Villa+3+BHK",
+        caption: "🏡 Imperial Villa – 3 BHK",
+        next_node_key: "collect_prompt",
+      } as SendMediaNodeConfig,
+    },
+    {
+      node_key: "collect_prompt",
+      node_type: "send_message",
+      config: {
+        text:
+          "📅 Let's check the best accommodation and quotation for you.\n\nPlease share:\n1. Check-in date\n2. Check-out date\n3. Number of adults\n4. Number of kids (and each child's age if any)\n\n👶 Children below 12 are kids; guests 12+ count as adults for pricing.",
+        next_node_key: "end",
+      } as SendMessageNodeConfig,
+    },
+    {
+      node_key: "end",
+      node_type: "end",
+      config: {},
+    },
+  ],
+};
+
+// ============================================================
 // Registry
 // ============================================================
 
@@ -293,6 +367,7 @@ const TEMPLATES: Record<string, FlowTemplate> = {
   welcome_menu: WELCOME_MENU,
   faq_bot: FAQ_BOT,
   lead_capture: LEAD_CAPTURE,
+  auravantara_welcome: AURAVANTARA_WELCOME,
 };
 
 export function getFlowTemplate(slug: string): FlowTemplate | null {

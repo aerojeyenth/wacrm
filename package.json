@@ -37,7 +37,8 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "seed:auravantara": "npx tsx --env-file=.env.local scripts/seed-auravantara-ai.ts"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^4.0.44",

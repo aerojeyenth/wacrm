@@ -7,6 +7,7 @@ import {
 } from './types'
 import { HANDOFF_SENTINEL, aiRequestTimeoutMs } from './defaults'
 import { generateWithAiSdk } from './providers/ai-sdk'
+import type { AgentToolsContext } from './tool-context'
 
 export interface GenerateArgs {
   config: AiConfig
@@ -16,6 +17,8 @@ export interface GenerateArgs {
   messages: ChatMessage[]
   /** Draft is text-only; auto-reply enables agent tools (e.g. handoff). */
   mode?: AiReplyMode
+  /** Live thread context for CRM tools; omitted in draft/playground. */
+  toolContext?: AgentToolsContext | null
 }
 
 /**
@@ -24,7 +27,7 @@ export interface GenerateArgs {
  * of the result. Throws `AiError` on any provider/network failure.
  */
 export async function generateReply(args: GenerateArgs): Promise<GenerateResult> {
-  const { config, systemPrompt, messages, mode = 'draft' } = args
+  const { config, systemPrompt, messages, mode = 'draft', toolContext } = args
   const timeoutMs = aiRequestTimeoutMs()
 
   const result = await generateWithAiSdk({
@@ -35,6 +38,7 @@ export async function generateReply(args: GenerateArgs): Promise<GenerateResult>
     messages,
     timeoutMs,
     mode,
+    toolContext,
   })
 
   const parsed = parseGeneration(result.text, result.usage)

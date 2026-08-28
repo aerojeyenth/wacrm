@@ -546,3 +546,27 @@ describe('inbound webhook: after() awaits automations (#368)', () => {
     expect(h.state.automationCompleted).toBe(3)
   })
 })
+
+describe('inbound webhook: AI auto-reply vs flows', () => {
+  it('does not dispatch AI when a flow consumed the inbound', async () => {
+    h.dispatchInboundToFlows.mockResolvedValue({ consumed: true })
+
+    await runWebhook()
+
+    expect(h.dispatchInboundToAiReply).not.toHaveBeenCalled()
+  })
+
+  it('dispatches AI when no flow consumed a text inbound', async () => {
+    h.dispatchInboundToFlows.mockResolvedValue({ consumed: false })
+
+    await runWebhook()
+
+    expect(h.dispatchInboundToAiReply).toHaveBeenCalledWith(
+      expect.objectContaining({
+        accountId: 'acc-1',
+        conversationId: 'conv-1',
+        contactId: 'contact-1',
+      }),
+    )
+  })
+})

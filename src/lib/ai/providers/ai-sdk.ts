@@ -10,6 +10,7 @@ import {
 } from '../types'
 import { AI_MAX_TOOL_STEPS, MAX_OUTPUT_TOKENS } from '../defaults'
 import { buildAgentTools, type AgentToolsMode } from '../tools'
+import type { AgentToolsContext } from '../tool-context'
 import { toAiError } from '../map-error'
 import { mergeConsecutive } from './shared'
 
@@ -21,6 +22,7 @@ export interface AiSdkGenerateArgs {
   messages: ChatMessage[]
   timeoutMs: number
   mode: AgentToolsMode
+  toolContext?: AgentToolsContext | null
 }
 
 export interface AiSdkGenerateResult {
@@ -97,8 +99,9 @@ function normalizeUsage(raw: {
 export async function generateWithAiSdk(
   args: AiSdkGenerateArgs,
 ): Promise<AiSdkGenerateResult> {
-  const { provider, apiKey, model, systemPrompt, messages, timeoutMs, mode } = args
-  const tools = buildAgentTools(mode)
+  const { provider, apiKey, model, systemPrompt, messages, timeoutMs, mode, toolContext } =
+    args
+  const tools = buildAgentTools(mode, toolContext)
   const hasTools = Object.keys(tools).length > 0
 
   try {

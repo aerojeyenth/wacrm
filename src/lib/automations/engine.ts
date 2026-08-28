@@ -75,12 +75,35 @@ export async function cancelPendingExecutionsOnContactReply(args: {
 }): Promise<number> {
   try {
     const db = supabaseAdmin()
-    const { data, error } = await db
+    const { data: pending, error: fetchErr } = await db
       .from('automation_pending_executions')
-      .update({ status: 'cancelled' })
+      .select('id, automations!inner(cancel_on_reply)')
       .eq('account_id', args.accountId)
       .eq('contact_id', args.contactId)
       .eq('status', 'pending')
+    if (fetchErr) {
+      console.error('[automations] cancel pending fetch failed:', fetchErr)
+      return 0
+    }
+    if (!pending?.length) return 0
+
+    const ids = pending
+      .filter((row) => {
+        const joined = row.automations as
+          | { cancel_on_reply: boolean }
+          | { cancel_on_reply: boolean }[]
+          | null
+        const automation = Array.isArray(joined) ? joined[0] : joined
+        return automation?.cancel_on_reply !== false
+      })
+      .map((row) => row.id as string)
+
+    if (ids.length === 0) return 0
+
+    const { data, error } = await db
+      .from('automation_pending_executions')
+      .update({ status: 'cancelled' })
+      .in('id', ids)
       .select('id')
     if (error) {
       console.error('[automations] cancel pending on reply failed:', error)

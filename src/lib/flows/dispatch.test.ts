@@ -13,6 +13,8 @@ const h = vi.hoisted(() => ({
   state: {
     /** Rows loadActiveRunForContact sees. Empty = no run in progress. */
     activeRuns: [] as unknown[],
+    /** Completed / failed runs — used by the once-per-contact first_inbound matcher. */
+    historicalRuns: [] as unknown[],
     flows: [] as unknown[],
     nodes: [] as unknown[],
     inserted: [] as { table: string; row: Record<string, unknown> }[],
@@ -31,9 +33,15 @@ vi.mock("./admin-client", () => {
   }
 
   function builder(table: string) {
+    let statusFilter: string | undefined;
     const b: Record<string, unknown> = {
       select: () => b,
-      eq: () => b,
+      eq: (col?: string, val?: unknown) => {
+        if (table === "flow_runs" && col === "status" && typeof val === "string") {
+          statusFilter = val;
+        }
+        return b;
+      },
       in: () => b,
       filter: () => b,
       order: () => b,
@@ -65,7 +73,16 @@ vi.mock("./admin-client", () => {
           error: null;
           count: number;
         }) => unknown,
-      ) => resolve({ data: rows(table), error: null, count: 0 }),
+      ) => {
+        let data = rows(table);
+        if (table === "flow_runs") {
+          data =
+            statusFilter === "active"
+              ? h.state.activeRuns
+              : [...h.state.activeRuns, ...h.state.historicalRuns];
+        }
+        return resolve({ data, error: null, count: data.length });
+      },
     };
     return b;
   }
@@ -152,6 +169,7 @@ function startedRuns() {
 beforeEach(() => {
   // No run in progress — the whole point is the entry-trigger path.
   h.state.activeRuns = [];
+  h.state.historicalRuns = [];
   h.state.flows = [];
   h.state.nodes = NODES;
   h.state.inserted = [];
@@ -315,5 +333,51 @@ describe("dispatchInboundToFlows — entry triggers (#490)", () => {
     expect(result.consumed).toBe(true);
     expect(result.flow_run_id).toBe("run-1");
     expect(startedRuns()).toHaveLength(1);
+  });
+
+  it("starts a first_inbound_message flow for a returning contact who has never run it", async () => {
+    // Auravantara welcome: flow activated after the test number already
+    // chatted. isFirstInboundMessage is false, so the old matcher left
+    // the inbound for the AI auto-reply instead of sending villa photos.
+    h.state.flows = [
+      {
+        ...KEYWORD_FLOW,
+        trigger_type: "first_inbound_message",
+        trigger_config: {},
+      },
+    ];
+
+    const result = await dispatch({
+      kind: "text",
+      text: "Hi",
+      meta_message_id: "m1",
+    });
+
+    expect(result.consumed).toBe(true);
+    expect(result.flow_run_id).toBe("run-1");
+    expect(startedRuns()).toHaveLength(1);
+    expect(engineSendText).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not restart a first_inbound_message flow the contact has already run", async () => {
+    h.state.historicalRuns = [
+      { id: "old-run", flow_id: "flow-1", status: "completed" },
+    ];
+    h.state.flows = [
+      {
+        ...KEYWORD_FLOW,
+        trigger_type: "first_inbound_message",
+        trigger_config: {},
+      },
+    ];
+
+    const result = await dispatch({
+      kind: "text",
+      text: "Hi",
+      meta_message_id: "m1",
+    });
+
+    expect(result.consumed).toBe(false);
+    expect(startedRuns()).toHaveLength(0);
   });
 });

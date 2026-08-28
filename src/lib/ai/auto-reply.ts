@@ -117,6 +117,12 @@ export async function dispatchInboundToAiReply(
       systemPrompt,
       messages,
       mode: 'auto_reply',
+      toolContext: {
+        accountId,
+        contactId,
+        conversationId,
+        configOwnerUserId,
+      },
     })
 
     // Record token spend on the account's BYO key. Fire-and-forget so it

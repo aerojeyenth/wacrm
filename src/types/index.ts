@@ -622,6 +622,8 @@ export interface Automation {
   trigger_type: AutomationTriggerType;
   trigger_config: AutomationTriggerConfig;
   is_active: boolean;
+  /** When true (default), a customer reply cancels pending wait steps. */
+  cancel_on_reply?: boolean;
   execution_count: number;
   last_executed_at?: string | null;
   created_at: string;
