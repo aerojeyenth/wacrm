@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 // Shared, hoisted state the module mocks close over. Reset per test.
 const h = vi.hoisted(() => ({
   runAutomationsForTrigger: vi.fn(),
+  cancelPendingExecutionsOnContactReply: vi.fn(),
   dispatchInboundToFlows: vi.fn(),
   dispatchInboundToAiReply: vi.fn(),
   dispatchWebhookEvent: vi.fn(),
@@ -191,6 +192,7 @@ vi.mock('@/lib/whatsapp/template-webhook', () => ({
 }))
 vi.mock('@/lib/automations/engine', () => ({
   runAutomationsForTrigger: h.runAutomationsForTrigger,
+  cancelPendingExecutionsOnContactReply: h.cancelPendingExecutionsOnContactReply,
 }))
 vi.mock('@/lib/flows/engine', () => ({
   dispatchInboundToFlows: h.dispatchInboundToFlows,
@@ -272,6 +274,7 @@ beforeEach(() => {
   h.dispatchInboundToFlows.mockResolvedValue({ consumed: false })
   h.dispatchInboundToAiReply.mockResolvedValue(undefined)
   h.dispatchWebhookEvent.mockResolvedValue(undefined)
+  h.cancelPendingExecutionsOnContactReply.mockResolvedValue(0)
   h.runAutomationsForTrigger.mockImplementation(() => {
     h.state.automationStarted++
     return new Promise<void>((resolve) => {
@@ -296,6 +299,10 @@ describe('inbound webhook: idempotent insert (#367)', () => {
     })
     // Downstream side effects ran exactly once.
     expect(h.state.rpcCalls).toHaveLength(1)
+    expect(h.cancelPendingExecutionsOnContactReply).toHaveBeenCalledWith({
+      accountId: 'acc-1',
+      contactId: expect.any(String),
+    })
     expect(h.dispatchInboundToFlows).toHaveBeenCalledTimes(1)
     expect(h.dispatchWebhookEvent).toHaveBeenCalledTimes(1)
   })
@@ -309,6 +316,7 @@ describe('inbound webhook: idempotent insert (#367)', () => {
     expect(h.state.upsertCalls).toHaveLength(1)
     // None of the downstream side effects fire on a replay.
     expect(h.state.rpcCalls).toHaveLength(0)
+    expect(h.cancelPendingExecutionsOnContactReply).not.toHaveBeenCalled()
     expect(h.dispatchInboundToFlows).not.toHaveBeenCalled()
     expect(h.runAutomationsForTrigger).not.toHaveBeenCalled()
     expect(h.dispatchInboundToAiReply).not.toHaveBeenCalled()

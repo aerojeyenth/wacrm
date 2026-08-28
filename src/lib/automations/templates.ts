@@ -108,13 +108,14 @@ export const AUTOMATION_TEMPLATES: Record<TemplateSlug, AutomationTemplateDefini
   follow_up_reminder: {
     slug: 'follow_up_reminder',
     name: 'Follow-up Reminder',
-    description: 'Send a nudge if a contact has not replied within 24 hours.',
-    trigger_type: 'new_message_received',
+    description:
+      'Nudge a first-time contact if they go quiet — waits 2 hours, then sends a reminder. Cancelled automatically when they reply (works alongside AI auto-reply).',
+    trigger_type: 'first_inbound_message',
     trigger_config: {},
     steps: [
       {
         step_type: 'wait',
-        step_config: { amount: 1, unit: 'days' },
+        step_config: { amount: 2, unit: 'hours' },
       },
       {
         step_type: 'send_message',

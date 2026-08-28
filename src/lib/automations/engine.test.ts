@@ -9,10 +9,18 @@ const h = vi.hoisted(() => ({
     automations: [] as Record<string, unknown>[],
     steps: [] as Record<string, unknown>[],
     fromCalls: [] as string[],
-    updateCalls: [] as { table: string; filters: [string, string, unknown][] }[],
+    updateCalls: [] as {
+      table: string;
+      filters: [string, string, unknown][];
+      payload?: unknown;
+    }[],
     upsertCalls: [] as { table: string; payload: unknown }[],
     logInserts: [] as Record<string, unknown>[],
     logUpdates: [] as Record<string, unknown>[],
+    cancelPendingResult: {
+      data: [] as { id: string }[],
+      error: null as { message: string } | null,
+    },
   },
 }));
 
@@ -24,6 +32,7 @@ vi.mock("./admin-client", () => {
     type: string;
     payload?: unknown;
     filters: [string, string, unknown][];
+    selectAfterUpdate?: boolean;
   }) {
     const { table, type } = ops;
     if (table === "contacts") {
@@ -58,6 +67,23 @@ vi.mock("./admin-client", () => {
       return { data: { steps_executed: [], status: "success" }, error: null };
     }
     if (table === "automation_steps") return { data: state.steps, error: null };
+    if (table === "automation_pending_executions") {
+      if (type === "update") {
+        state.updateCalls.push({
+          table,
+          filters: ops.filters,
+          payload: ops.payload,
+        });
+        if (ops.selectAfterUpdate) {
+          return {
+            data: state.cancelPendingResult.data,
+            error: state.cancelPendingResult.error,
+          };
+        }
+        return { data: null, error: null };
+      }
+      return { data: null, error: null };
+    }
     return { data: null, error: null };
   }
 
@@ -67,9 +93,13 @@ vi.mock("./admin-client", () => {
       type: "select",
       payload: undefined as unknown,
       filters: [] as [string, string, unknown][],
+      selectAfterUpdate: false,
     };
     const b: Record<string, unknown> = {
-      select: () => b,
+      select: () => {
+        if (ops.type === "update") ops.selectAfterUpdate = true;
+        return b;
+      },
       insert: (p: unknown) => ((ops.type = "insert"), (ops.payload = p), b),
       update: (p: unknown) => ((ops.type = "update"), (ops.payload = p), b),
       delete: () => ((ops.type = "delete"), b),
@@ -104,7 +134,11 @@ vi.mock("./meta-send", () => ({
   engineSendInteractive: vi.fn(async () => ({ whatsapp_message_id: "m1" })),
 }));
 
-import { runAutomationsForTrigger, triggerMatches } from "./engine";
+import {
+  runAutomationsForTrigger,
+  triggerMatches,
+  cancelPendingExecutionsOnContactReply,
+} from "./engine";
 import type { Automation, KeywordMatchTriggerConfig } from "@/types";
 
 const ACCOUNT = "acct-1";
@@ -119,6 +153,48 @@ beforeEach(() => {
   h.state.upsertCalls = [];
   h.state.logInserts = [];
   h.state.logUpdates = [];
+  h.state.cancelPendingResult = { data: [], error: null };
+});
+
+describe("cancelPendingExecutionsOnContactReply", () => {
+  it("cancels pending rows for the contact and returns the count", async () => {
+    h.state.cancelPendingResult = {
+      data: [{ id: "p1" }, { id: "p2" }],
+      error: null,
+    };
+
+    const cancelled = await cancelPendingExecutionsOnContactReply({
+      accountId: ACCOUNT,
+      contactId: "c1",
+    });
+
+    expect(cancelled).toBe(2);
+    expect(h.state.updateCalls).toContainEqual(
+      expect.objectContaining({
+        table: "automation_pending_executions",
+        payload: { status: "cancelled" },
+        filters: expect.arrayContaining([
+          ["eq", "account_id", ACCOUNT],
+          ["eq", "contact_id", "c1"],
+          ["eq", "status", "pending"],
+        ]),
+      }),
+    );
+  });
+
+  it("returns 0 when the update fails", async () => {
+    h.state.cancelPendingResult = {
+      data: [],
+      error: { message: "db down" },
+    };
+
+    const cancelled = await cancelPendingExecutionsOnContactReply({
+      accountId: ACCOUNT,
+      contactId: "c1",
+    });
+
+    expect(cancelled).toBe(0);
+  });
 });
 
 describe("runAutomationsForTrigger — tenant isolation", () => {

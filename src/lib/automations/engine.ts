@@ -64,6 +64,35 @@ export interface DispatchInput {
  * All errors are caught and logged; per-automation failures are
  * recorded into automation_logs with status='failed'.
  */
+/**
+ * Cancel scheduled automation waits for a contact who just replied.
+ * Fire-and-forget safe — never throws. Returns how many rows were
+ * cancelled (0 on error) for tests / diagnostics.
+ */
+export async function cancelPendingExecutionsOnContactReply(args: {
+  accountId: string
+  contactId: string
+}): Promise<number> {
+  try {
+    const db = supabaseAdmin()
+    const { data, error } = await db
+      .from('automation_pending_executions')
+      .update({ status: 'cancelled' })
+      .eq('account_id', args.accountId)
+      .eq('contact_id', args.contactId)
+      .eq('status', 'pending')
+      .select('id')
+    if (error) {
+      console.error('[automations] cancel pending on reply failed:', error)
+      return 0
+    }
+    return data?.length ?? 0
+  } catch (err) {
+    console.error('[automations] cancel pending on reply threw:', err)
+    return 0
+  }
+}
+
 export async function runAutomationsForTrigger(input: DispatchInput): Promise<void> {
   try {
     const db = supabaseAdmin()

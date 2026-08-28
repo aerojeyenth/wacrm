@@ -7,7 +7,7 @@ import { normalizePhone } from '@/lib/whatsapp/phone-utils'
 import { findExistingContact, isUniqueViolation } from '@/lib/contacts/dedupe'
 import { reopenClosedConversation } from '@/lib/conversations/reopen'
 import { verifyMetaWebhookSignature } from '@/lib/whatsapp/webhook-signature'
-import { runAutomationsForTrigger } from '@/lib/automations/engine'
+import { runAutomationsForTrigger, cancelPendingExecutionsOnContactReply } from '@/lib/automations/engine'
 import { dispatchInboundToFlows } from '@/lib/flows/engine'
 import { dispatchInboundToAiReply } from '@/lib/ai/auto-reply'
 import { dispatchWebhookEvent } from '@/lib/webhooks/deliver'
@@ -768,6 +768,14 @@ async function processMessage(
   // so the broadcast's `replied_count` advances (via the aggregate
   // trigger installed in migration 003).
   await flagBroadcastReplyIfAny(accountId, contactRecord.id)
+
+  // A customer reply cancels any scheduled automation waits (e.g. a
+  // first-inbound nudge chain waiting 2h). Runs before flows so
+  // engagement stops timers even when a flow consumes the message.
+  await cancelPendingExecutionsOnContactReply({
+    accountId,
+    contactId: contactRecord.id,
+  })
 
   // ============================================================
   // Flow runner dispatch.
