@@ -14,7 +14,7 @@ export function buildAgentTools(mode: AgentToolsMode): ToolSet {
   return {
     handoff_to_human: tool({
       description:
-        'Transfer this WhatsApp conversation to a human agent when you cannot confidently and safely help — the customer asks for a person, is upset, or you lack required information.',
+        'Transfer this WhatsApp conversation to a human agent when you cannot confidently help — the customer asks for a person, is upset, or you lack required information. Do NOT use for greetings or simple chitchat.',
       inputSchema: z.object({
         reason: z
           .string()

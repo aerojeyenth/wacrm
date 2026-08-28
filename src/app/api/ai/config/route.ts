@@ -8,7 +8,8 @@ import { checkRateLimit, rateLimitResponse, RATE_LIMITS } from '@/lib/rate-limit
 import { encrypt, decrypt } from '@/lib/whatsapp/encryption'
 import { validateAiCredentials } from '@/lib/ai/validate'
 import { embedTexts } from '@/lib/ai/embeddings'
-import { AiError, type AiProvider } from '@/lib/ai/types'
+import { AiError } from '@/lib/ai/types'
+import { aiProviderErrorMessage, isAiProvider } from '@/lib/ai/provider-guard'
 
 function bad(message: string) {
   return NextResponse.json({ error: message }, { status: 400 })
@@ -77,9 +78,9 @@ export async function POST(request: Request) {
     const body = await request.json().catch(() => null)
     if (!body || typeof body !== 'object') return bad('Invalid request body')
 
-    const provider = body.provider as AiProvider
-    if (provider !== 'openai' && provider !== 'anthropic') {
-      return bad('provider must be "openai" or "anthropic"')
+    const provider = body.provider
+    if (!isAiProvider(provider)) {
+      return bad(aiProviderErrorMessage())
     }
     const model = typeof body.model === 'string' ? body.model.trim() : ''
     if (!model) return bad('model is required')

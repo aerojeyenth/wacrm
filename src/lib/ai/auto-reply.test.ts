@@ -209,4 +209,11 @@ describe('dispatchInboundToAiReply — handoff', () => {
       assigned_agent_id: 'agent-7',
     })
   })
+
+  it('does not pause the bot when the model returns empty text without handoff', async () => {
+    h.generateReply.mockResolvedValue({ text: '', handoff: false, usage: null, toolCalls: [] })
+    await dispatchInboundToAiReply(ARGS)
+    expect(h.state.updatePayload?.ai_autoreply_disabled).not.toBe(true)
+    expect(h.engineSendText).not.toHaveBeenCalled()
+  })
 })

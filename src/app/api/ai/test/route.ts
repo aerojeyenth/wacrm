@@ -3,7 +3,8 @@ import { requireRole, toErrorResponse } from '@/lib/auth/account'
 import { checkRateLimit, rateLimitResponse, RATE_LIMITS } from '@/lib/rate-limit'
 import { decrypt } from '@/lib/whatsapp/encryption'
 import { validateAiCredentials } from '@/lib/ai/validate'
-import { AiError, type AiProvider } from '@/lib/ai/types'
+import { AiError } from '@/lib/ai/types'
+import { aiProviderErrorMessage, isAiProvider } from '@/lib/ai/provider-guard'
 
 /**
  * POST /api/ai/test  (admin+)
@@ -26,12 +27,9 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Invalid request body' }, { status: 400 })
     }
 
-    const provider = body.provider as AiProvider
-    if (provider !== 'openai' && provider !== 'anthropic') {
-      return NextResponse.json(
-        { error: 'provider must be "openai" or "anthropic"' },
-        { status: 400 },
-      )
+    const provider = body.provider
+    if (!isAiProvider(provider)) {
+      return NextResponse.json({ error: aiProviderErrorMessage() }, { status: 400 })
     }
     const model = typeof body.model === 'string' ? body.model.trim() : ''
     if (!model) {

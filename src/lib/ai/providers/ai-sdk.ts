@@ -1,6 +1,7 @@
 import { generateText, stepCountIs, type LanguageModel } from 'ai'
 import { createOpenAI } from '@ai-sdk/openai'
 import { createAnthropic } from '@ai-sdk/anthropic'
+import { createOpenRouterModel } from './openrouter'
 import {
   AiError,
   type AiProvider,
@@ -39,6 +40,8 @@ function createLanguageModel(
       return createOpenAI({ apiKey })(model)
     case 'anthropic':
       return createAnthropic({ apiKey })(model)
+    case 'openrouter':
+      return createOpenRouterModel(apiKey, model)
     default:
       throw new AiError(`Unsupported AI provider: ${provider}`, {
         code: 'unsupported_provider',

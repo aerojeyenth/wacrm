@@ -13,6 +13,7 @@ import type { AiProvider } from './types'
 export const AI_PROVIDER_DEFAULT_MODEL: Record<AiProvider, string> = {
   openai: 'gpt-5.4-mini',
   anthropic: 'claude-haiku-4-5-20251001',
+  openrouter: 'openai/gpt-4o-mini',
 }
 
 /**
@@ -71,7 +72,7 @@ export function buildSystemPrompt(args: {
 
   if (mode === 'auto_reply') {
     parts.push(
-      'You are replying automatically with no human in the loop. If you cannot confidently and safely help — the customer explicitly asks for a human, is upset or complaining, or the request needs information you do not have — call the handoff_to_human tool. A human agent will then take over. Prefer handing off over guessing. As a fallback you may reply with exactly ' +
+      'You are replying automatically with no human in the loop. Greet the customer and answer simple messages (hello, thanks, etc.) yourself — do not hand off for those. Only hand off when the customer explicitly asks for a human, is upset or complaining, or you need information you do not have. To hand off, call the handoff_to_human tool. As a fallback you may reply with exactly ' +
         `${HANDOFF_SENTINEL} and nothing else.`,
     )
   }

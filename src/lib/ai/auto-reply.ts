@@ -133,7 +133,7 @@ export async function dispatchInboundToAiReply(
       usage,
     })
 
-    if (handoff || !text) {
+    if (handoff) {
       // The model can't (or shouldn't) answer — stop auto-replying on
       // this thread and hand it to a human. We (a) pause the bot here
       // (sticky until re-enabled), (b) route the conversation to the
@@ -155,6 +155,16 @@ export async function dispatchInboundToAiReply(
         update.assigned_agent_id = config.handoffAgentId
       }
       await db.from('conversations').update(update).eq('id', conversationId)
+      return
+    }
+
+    if (!text) {
+      // Provider returned no customer-facing text without asking to hand
+      // off — treat as a failed attempt, not a handoff (don't pause the
+      // bot on a transient/compat glitch).
+      console.warn(
+        `[ai auto-reply] empty reply for conversation ${conversationId} — skipping send, bot stays active.`,
+      )
       return
     }
 
