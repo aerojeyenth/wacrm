@@ -8,6 +8,14 @@
 
 export type AiProvider = 'openai' | 'anthropic'
 
+export type AiReplyMode = 'draft' | 'auto_reply'
+
+/** Summary of a tool the model invoked (for playground / debugging). */
+export interface AiToolCallSummary {
+  toolName: string
+  input: unknown
+}
+
 /**
  * Account AI setup, decrypted and ready to use. Produced by
  * `loadAiConfig` — `apiKey` is the plaintext BYO provider key
@@ -62,6 +70,8 @@ export interface GenerateResult {
   handoff: boolean
   /** Provider token usage for this call, or null when unavailable. */
   usage: AiUsage | null
+  /** Tool calls made during generation (empty when no tools were available). */
+  toolCalls: AiToolCallSummary[]
 }
 
 /**

@@ -187,7 +187,38 @@ export async function POST(request: Request) {
     const body = await request.json()
     const { phone_number_id, waba_id, access_token, verify_token, pin } = body
 
-    if (!access_token || !phone_number_id) {
+    if (!phone_number_id) {
+      return NextResponse.json(
+        { error: 'phone_number_id is required' },
+        { status: 400 }
+      )
+    }
+
+    // Look up any pre-existing row early so we can reuse stored secrets
+    // when the user is updating verify token / WABA without re-pasting
+    // the access token (common on Meta test numbers with no PIN).
+    const { data: existing } = await supabase
+      .from('whatsapp_config')
+      .select('id, registered_at, phone_number_id, access_token, verify_token')
+      .eq('account_id', accountId)
+      .maybeSingle()
+
+    let accessTokenToUse: string
+    if (typeof access_token === 'string' && access_token.trim()) {
+      accessTokenToUse = access_token.trim()
+    } else if (existing?.access_token) {
+      try {
+        accessTokenToUse = decrypt(existing.access_token)
+      } catch {
+        return NextResponse.json(
+          {
+            error:
+              'Access token is required. The stored token cannot be decrypted — re-enter it to save changes.',
+          },
+          { status: 400 }
+        )
+      }
+    } else {
       return NextResponse.json(
         { error: 'access_token and phone_number_id are required' },
         { status: 400 }
@@ -240,7 +271,7 @@ export async function POST(request: Request) {
     try {
       phoneInfo = await verifyPhoneNumber({
         phoneNumberId: phone_number_id,
-        accessToken: access_token,
+        accessToken: accessTokenToUse,
       })
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Unknown Meta API error'
@@ -251,12 +282,21 @@ export async function POST(request: Request) {
       )
     }
 
-    // Encrypt sensitive tokens before storing
+    // Encrypt sensitive tokens before storing. When the client omits
+    // verify_token (field cleared in the UI after save), keep the
+    // existing encrypted value instead of wiping it to NULL.
     let encryptedAccessToken: string
     let encryptedVerifyToken: string | null
     try {
-      encryptedAccessToken = encrypt(access_token)
-      encryptedVerifyToken = verify_token ? encrypt(verify_token) : null
+      encryptedAccessToken =
+        typeof access_token === 'string' && access_token.trim()
+          ? encrypt(access_token.trim())
+          : (existing?.access_token as string)
+      if (typeof verify_token === 'string' && verify_token.trim()) {
+        encryptedVerifyToken = encrypt(verify_token.trim())
+      } else {
+        encryptedVerifyToken = (existing?.verify_token as string | null) ?? null
+      }
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Unknown encryption error'
       console.error('Encryption failed:', message)
@@ -268,15 +308,6 @@ export async function POST(request: Request) {
         { status: 500 }
       )
     }
-
-    // Look up any pre-existing row for this account so we know whether
-    // this number is already registered with Meta — if so we can skip
-    // /register when the user didn't provide a PIN this time around.
-    const { data: existing } = await supabase
-      .from('whatsapp_config')
-      .select('id, registered_at, phone_number_id')
-      .eq('account_id', accountId)
-      .maybeSingle()
 
     const sameNumber =
       existing?.phone_number_id === phone_number_id &&
@@ -313,7 +344,7 @@ export async function POST(request: Request) {
         try {
           await registerPhoneNumber({
             phoneNumberId: phone_number_id,
-            accessToken: access_token,
+            accessToken: accessTokenToUse,
             pin,
           })
           registeredAt = new Date().toISOString()
@@ -338,7 +369,7 @@ export async function POST(request: Request) {
       try {
         await subscribeWabaToApp({
           wabaId: waba_id,
-          accessToken: access_token,
+          accessToken: accessTokenToUse,
         })
         subscribedAppsAt = new Date().toISOString()
       } catch (err) {

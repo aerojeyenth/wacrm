@@ -1,13 +1,12 @@
 import {
-  AiError,
   type AiConfig,
+  type AiReplyMode,
   type AiUsage,
   type ChatMessage,
   type GenerateResult,
 } from './types'
 import { HANDOFF_SENTINEL, aiRequestTimeoutMs } from './defaults'
-import { generateOpenAi } from './providers/openai'
-import { generateAnthropic } from './providers/anthropic'
+import { generateWithAiSdk } from './providers/ai-sdk'
 
 export interface GenerateArgs {
   config: AiConfig
@@ -15,40 +14,35 @@ export interface GenerateArgs {
   systemPrompt: string
   /** Recent conversation turns, oldest first. */
   messages: ChatMessage[]
+  /** Draft is text-only; auto-reply enables agent tools (e.g. handoff). */
+  mode?: AiReplyMode
 }
 
 /**
- * Generate the next reply from the account's configured provider.
- * Dispatches to the right adapter, then parses the handoff sentinel out
- * of the raw text. Throws `AiError` on any provider/network failure.
+ * Generate the next reply from the account's configured provider via the
+ * Vercel AI SDK. Parses the handoff sentinel and tool-based handoffs out
+ * of the result. Throws `AiError` on any provider/network failure.
  */
 export async function generateReply(args: GenerateArgs): Promise<GenerateResult> {
-  const { config, systemPrompt, messages } = args
+  const { config, systemPrompt, messages, mode = 'draft' } = args
   const timeoutMs = aiRequestTimeoutMs()
-  const providerArgs = {
+
+  const result = await generateWithAiSdk({
+    provider: config.provider,
     apiKey: config.apiKey,
     model: config.model,
     systemPrompt,
     messages,
     timeoutMs,
-  }
+    mode,
+  })
 
-  let result: { text: string; usage: AiUsage | null }
-  switch (config.provider) {
-    case 'openai':
-      result = await generateOpenAi(providerArgs)
-      break
-    case 'anthropic':
-      result = await generateAnthropic(providerArgs)
-      break
-    default:
-      throw new AiError(`Unsupported AI provider: ${config.provider}`, {
-        code: 'unsupported_provider',
-        status: 400,
-      })
+  const parsed = parseGeneration(result.text, result.usage)
+  return {
+    ...parsed,
+    handoff: parsed.handoff || result.handoffFromTool,
+    toolCalls: result.toolCalls,
   }
-
-  return parseGeneration(result.text, result.usage)
 }
 
 /**
@@ -61,7 +55,7 @@ export async function generateReply(args: GenerateArgs): Promise<GenerateResult>
 export function parseGeneration(
   raw: string,
   usage: AiUsage | null = null,
-): GenerateResult {
+): Omit<GenerateResult, 'toolCalls'> {
   const handoff = raw.includes(HANDOFF_SENTINEL)
   const text = raw.split(HANDOFF_SENTINEL).join('').trim()
   return { text, handoff, usage }

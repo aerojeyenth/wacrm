@@ -1494,6 +1494,7 @@
       "accessToken": "영구 액세스 토큰",
       "accessTokenPlaceholder": "액세스 토큰을 입력하세요",
       "tokenHidden": "보안을 위해 토큰이 숨겨져 있습니다. 설정을 업데이트하려면 다시 입력하세요.",
+      "verifyTokenSaved": "웹훅 확인 토큰이 저장되어 있습니다. 변경할 때만 새 값을 입력하세요.",
       "webhookVerifyToken": "웹훅 인증 토큰",
       "webhookVerifyTokenPlaceholder": "사용자 지정 인증 토큰을 만드세요",
       "webhookVerifyTokenHint": "직접 만드는 문자열입니다. Meta 웹훅 설정에 지정한 토큰과 일치해야 합니다.",
