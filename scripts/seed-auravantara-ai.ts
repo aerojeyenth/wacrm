@@ -277,7 +277,9 @@ async function main() {
   console.log('  1. Settings → Agent setup — add API key if not set')
   console.log('  2. Flows → Auravantara welcome — replace media URLs, activate')
   console.log('  3. Automations → 20-hour closing — activate')
-  console.log('  4. Set AUTOMATION_CRON_SECRET and schedule /api/automations/cron')
+  console.log(
+    '  4. Set AUTOMATION_CRON_SECRET in the app env and schedule GET /api/automations/cron and GET /api/flows/cron every 2–5 minutes (header x-cron-secret)',
+  )
 }
 
 main().catch((err) => {

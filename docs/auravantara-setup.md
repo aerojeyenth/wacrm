@@ -36,7 +36,11 @@ The auto-reply prompt includes today's date in `Asia/Kolkata` so the agent can r
 
 1. **Flows** → Auravantara welcome → replace placeholder media URLs with your villa photos → **Activate**
 2. **Automations** → Auravantara 20-hour closing → **Activate**
-3. Set `AUTOMATION_CRON_SECRET` and schedule `GET /api/automations/cron` every few minutes
+3. Set `AUTOMATION_CRON_SECRET` and schedule these every 2–5 minutes (Coolify → Scheduled Tasks, or any cron pinger):
+   - `GET /api/automations/cron` with header `x-cron-secret: $AUTOMATION_CRON_SECRET`
+   - `GET /api/flows/cron` with the same header
+
+Without the cron job, Wait steps never resume — the 20-hour sequence will not send. Copy the secret into the Coolify environment as well as `.env.local`, then restart the app.
 
 The welcome flow runs **once per contact**, then the AI agent takes over. A test number that already chatted still gets the welcome on its next inbound (it is not limited to the contact's very first message ever).
 
